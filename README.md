@@ -2,6 +2,20 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
+# AI-Powered Privacy Protection for Images | GuardVision
+
+GuardVision, a privacy-first AI application that automatically detects and redacts sensitive personal and confidential information from images.
+
+Using gemini-3-flash-preview, the system analyzes images such as screenshots, documents, and photos to identify PII like names, phone numbers, IDs, faces, and confidential text—then securely redacts them in real time.
+
+🧠 Why this matters:
+Images are one of the biggest sources of accidental data leaks. This tool helps teams and individuals share, store, and analyze visual data safely and compliantly, making privacy the default—not an afterthought.
+
+🔍 Potential use cases:
+Healthcare (HIPAA), enterprise compliance (GDPR/CCPA), legal & insurance workflows, research data anonymization, and consumer apps.
+
+This project was built as an innovative approach to privacy-aware AI, focusing on automation, accuracy, and real-world applicability.
+
 # Run and deploy your AI Studio app
 
 This contains everything you need to run your app locally.

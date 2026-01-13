@@ -16,3 +16,10 @@ This contains everything you need to run your app locally.
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## 🎥 Demo Video
+
+[![GuardVision Demo](https://img.youtube.com/vi/-PxtRT_xSe4/0.jpg)](https://www.youtube.com/watch?v=-PxtRT_xSe4)
+
+
+

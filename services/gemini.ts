@@ -2,21 +2,55 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Detection } from "../types";
 
-// Using Gemini 3 Flash for the fastest possible inference latency (usually < 3s)
+// Using Flash for significantly faster inference in real-time redaction tasks
 const MODEL_NAME = 'gemini-3-flash-preview';
 
+/**
+ * Applies a small safety margin (padding) to the bounding box to ensure 
+ * complete coverage of the PII, especially for text where character 
+ * descenders/ascenders might be close to the edges.
+ */
+const applySafetyBuffer = (box: [number, number, number, number], bufferPercent: number = 0.015): [number, number, number, number] => {
+  const [ymin, xmin, ymax, xmax] = box;
+  const height = ymax - ymin;
+  const width = xmax - xmin;
+  
+  return [
+    Math.max(0, ymin - (height * bufferPercent)),
+    Math.max(0, xmin - (width * bufferPercent)),
+    Math.min(1000, ymax + (height * bufferPercent)),
+    Math.min(1000, xmax + (width * bufferPercent))
+  ];
+};
+
 export const analyzeImageForPII = async (base64Image: string): Promise<Detection[]> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const prompt = `
-    Find all PII/sensitive data in this image.
+    ACT AS A HIGH-PRECISION SECURITY AUDITOR.
+    Perform an exhaustive neural scan of the provided image to identify all Personally Identifiable Information (PII) and sensitive data markers.
     
-    RULES:
-    - Use [ymin, xmin, ymax, xmax] coordinates (0-1000).
-    - Tight bounding boxes.
-    - Labels: "Face", "Name", "ID Card", "Phone Number", "Email", "Address", "Credit Card", "Signature", "Sensitive Text".
+    SPATIAL ACCURACY IS CRITICAL:
+    - Return precise bounding boxes [ymin, xmin, ymax, xmax] mapped to a 0-1000 coordinate system.
+    - Ensure boxes encompass the FULL EXTENT of the target.
     
-    Output JSON array: [{"label": string, "confidence": number, "box_2d": [n,n,n,n]}]
+    SPECIAL INSTRUCTION FOR ID CARDS/DOCUMENTS:
+    - DO NOT redact the entire frame of an ID card, passport, or driver's license.
+    - INSTEAD, detect and redact specific PII FIELDS WITHIN the document, such as the person's photo, the unique ID number, full name, date of birth, and address.
+    
+    DETECTABLE CATEGORIES:
+    - "Face": Human faces (including photos on IDs).
+    - "Name": Printed or handwritten full names.
+    - "ID Number": Specific identifier strings (Passport No, License No, SSN).
+    - "QR Code": Any matrix barcodes or standard barcodes that may contain data.
+    - "Phone Number": Contact numbers.
+    - "Email": Digital mail addresses.
+    - "Address": Physical locations.
+    - "Credit Card": Card numbers, CVVs, or expiry dates.
+    - "Signature": Handwritten signatures.
+    - "Sensitive Text": Contextually private data or medical notes.
+    
+    OUTPUT FORMAT: Return ONLY a valid JSON array of objects.
   `;
 
   try {
@@ -29,7 +63,6 @@ export const analyzeImageForPII = async (base64Image: string): Promise<Detection
         ]
       },
       config: {
-        // Thinking budget 0 and Flash model minimize wait time significantly
         thinkingConfig: { thinkingBudget: 0 },
         responseMimeType: "application/json",
         responseSchema: {
@@ -53,14 +86,21 @@ export const analyzeImageForPII = async (base64Image: string): Promise<Detection
     });
 
     const text = response.text;
-    if (!text) throw new Error("No response from AI model.");
+    if (!text) throw new Error("No response from neural engine.");
 
     const rawDetections = JSON.parse(text);
-    return rawDetections.map((d: any, index: number) => ({
-      ...d,
-      id: `det-${index}-${Date.now()}`,
-      selected: true
-    }));
+    
+    return rawDetections.map((d: any, index: number) => {
+      // Post-processing: Apply a 1.5% buffer to ensure the redaction is slightly larger than the PII
+      const bufferedBox = applySafetyBuffer(d.box_2d, 0.015);
+      
+      return {
+        ...d,
+        id: `det-${index}-${Date.now()}`,
+        box_2d: bufferedBox,
+        selected: true
+      };
+    });
   } catch (error) {
     console.error("AI Analysis failed:", error);
     throw error;

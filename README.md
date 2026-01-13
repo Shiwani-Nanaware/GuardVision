@@ -1,5 +1,5 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+<img width="161" height="152" alt="Screenshot 2026-01-13 at 11 17 13 AM" src="https://github.com/user-attachments/assets/e95368c6-96c6-4ebd-9f70-06ea41454bbf" />
 </div>
 
 # AI-Powered Privacy Protection for Images | GuardVision

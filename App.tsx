@@ -130,12 +130,21 @@ const App: React.FC = () => {
       const uniqueLabels = Array.from(new Set(results.map(r => r.label)));
       setExpandedCategories(uniqueLabels.reduce((acc, label) => ({ ...acc, [label]: true }), {}));
     } catch (err: any) {
+      console.error("Privacy scan failed:", err);
+      const msg = String(err?.message ?? err?.error?.message ?? JSON.stringify(err ?? ""));
+      let friendlyError = "Privacy scan failed. Check network or API limits.";
+      if (msg.includes("Missing GEMINI_API_KEY")) {
+        friendlyError = "GEMINI_API_KEY is missing. Check your .env file and restart `npm run dev`.";
+      } else if (msg.includes("leaked") || msg.includes("Please use another API key")) {
+        friendlyError = "Your API key was reported as leaked. Create a new key at aistudio.google.com/apikey and update GEMINI_API_KEY in .env";
+      }
+
       setState(prev => ({
         ...prev,
         isAnalyzing: false,
-        error: "Privacy scan failed. Check network or API limits.",
+        error: friendlyError,
         images: prev.images.map(img =>
-          img.id === targetId ? { ...img, isAnalyzing: false, error: "Privacy scan failed. Check network or API limits." } : img
+          img.id === targetId ? { ...img, isAnalyzing: false, error: friendlyError } : img
         ),
       }));
     }

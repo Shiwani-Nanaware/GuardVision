@@ -128,8 +128,9 @@ export const analyzeImageForPII = async (base64Image: string): Promise<Detection
         break;
       }
     }
+    
   }
   
-  console.error("AI Analysis failed after retries:", lastError);
+  console.error("AI Analysis failed after retries:", lastError?.message ?? "Unknown error");
   throw lastError;
 };

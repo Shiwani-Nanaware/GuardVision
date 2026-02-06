@@ -17,10 +17,12 @@ export interface Detection {
 export interface ImageItem {
   id: string;
   fileName: string;
-  src: string; // base64 image data
+  src: string; // blob URL for display (memory efficient)
+  file: File; // original file for API calls
   detections: Detection[];
   isAnalyzing: boolean;
   error: string | null;
+  isProtected?: boolean; // cannot be deleted if true
 }
 
 export interface AppState {

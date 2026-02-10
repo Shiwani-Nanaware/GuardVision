@@ -105,10 +105,9 @@ const App: React.FC = () => {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
-        // Extract and return only the base64 data (without the data URL prefix)
+        // Return the full data URL (gemini.ts will strip the prefix)
         const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        const base64Data = dataUrl.split(',')[1];
-        resolve(base64Data);
+        resolve(dataUrl);
       };
       img.src = imageSource;
     });
@@ -595,9 +594,9 @@ const App: React.FC = () => {
                           : 'border-slate-800 bg-slate-900/40 hover:border-indigo-500/40 hover:bg-slate-800/60'
                       }`}
                     >
-                      <button
+                      <div
                         onClick={() => handleSelectImage(image.id)}
-                        className="w-full flex flex-col gap-2"
+                        className="w-full flex flex-col gap-2 cursor-pointer"
                       >
                         <div className="relative rounded-xl overflow-hidden border border-slate-800/60 h-20 bg-slate-900/60">
                           <img
@@ -639,7 +638,7 @@ const App: React.FC = () => {
                             )}
                           </div>
                         </div>
-                      </button>
+                      </div>
                     </div>
                   );
                 })}

@@ -5,12 +5,6 @@ import { Detection } from "../types";
 // Using Flash for significantly faster inference in real-time redaction tasks
 const MODEL_NAME = 'gemini-3-flash-preview';
 
-// Retry configuration for handling API overload
-const MAX_RETRIES = 3;
-const INITIAL_DELAY = 2000; // 2 seconds
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 /**
  * Applies a small safety margin (padding) to the bounding box to ensure 
  * complete coverage of the PII, especially for text where character 
@@ -29,15 +23,8 @@ const applySafetyBuffer = (box: [number, number, number, number], bufferPercent:
   ];
 };
 
-export const analyzeImageForPII = async (base64Data: string): Promise<Detection[]> => {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    console.error("GEMINI_API_KEY is not defined. Make sure it is set in your .env file and that the dev server has been restarted.");
-    throw new Error("Missing GEMINI_API_KEY configuration");
-  }
-
-  const ai = new GoogleGenAI({ apiKey });
+export const analyzeImageForPII = async (base64Image: string): Promise<Detection[]> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const prompt = `
     ACT AS A HIGH-PRECISION SECURITY AUDITOR.
@@ -63,74 +50,67 @@ export const analyzeImageForPII = async (base64Data: string): Promise<Detection[
     - "Signature": Handwritten signatures.
     - "Sensitive Text": Contextually private data or medical notes.
     
+    HIPAA-SPECIFIC CATEGORIES (Healthcare Contexts):
+    - "Date": Date of birth, admission dates, discharge dates, prescription dates, or any healthcare-related dates.
+    - "Medical Record Number": Patient MRN or medical record identifiers.
+    - "Health Plan ID": Insurance policy numbers, member IDs, or health plan identifiers.
+    - "Account Number": Healthcare billing numbers or account identifiers.
+    - "Device Identifier": Medical device serial numbers, implant identifiers, or equipment IDs.
+    - "Biometric Identifier": Fingerprints, retinal scans, iris scans, or other biometric markers beyond facial recognition.
+    
     OUTPUT FORMAT: Return ONLY a valid JSON array of objects.
   `;
 
-  let lastError: any;
-  
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    try {
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: {
-          parts: [
-            { inlineData: { data: base64Data, mimeType: 'image/jpeg' } },
-            { text: prompt }
-          ]
-        },
-        config: {
-          thinkingConfig: { thinkingBudget: 0 },
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                label: { type: Type.STRING },
-                confidence: { type: Type.NUMBER },
-                box_2d: {
-                  type: Type.ARRAY,
-                  items: { type: Type.NUMBER },
-                  minItems: 4,
-                  maxItems: 4
-                }
-              },
-              required: ["label", "confidence", "box_2d"]
-            }
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: {
+        parts: [
+          { inlineData: { data: base64Image.split(',')[1], mimeType: 'image/jpeg' } },
+          { text: prompt }
+        ]
+      },
+      config: {
+        thinkingConfig: { thinkingBudget: 0 },
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              label: { type: Type.STRING },
+              confidence: { type: Type.NUMBER },
+              box_2d: {
+                type: Type.ARRAY,
+                items: { type: Type.NUMBER },
+                minItems: 4,
+                maxItems: 4
+              }
+            },
+            required: ["label", "confidence", "box_2d"]
           }
         }
-      });
-
-      const text = response.text;
-      if (!text) throw new Error("No response from neural engine.");
-
-      const rawDetections = JSON.parse(text);
-      
-      return rawDetections.map((d: any, index: number) => {
-        const bufferedBox = applySafetyBuffer(d.box_2d, 0.015);
-        
-        return {
-          ...d,
-          id: `det-${index}-${Date.now()}`,
-          box_2d: bufferedBox,
-          selected: true
-        };
-      });
-    } catch (error: any) {
-      lastError = error;
-      const isOverloaded = error?.error?.code === 503 || error?.message?.includes('overloaded');
-      
-      if (isOverloaded && attempt < MAX_RETRIES - 1) {
-        const waitTime = INITIAL_DELAY * Math.pow(2, attempt);
-        console.warn(`API overloaded. Retrying in ${waitTime}ms... (Attempt ${attempt + 1}/${MAX_RETRIES})`);
-        await delay(waitTime);
-      } else {
-        break;
       }
-    }
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("No response from neural engine.");
+
+    const rawDetections = JSON.parse(text);
     
+    return rawDetections.map((d: any, index: number) => {
+      // Post-processing: Apply a 1.5% buffer to ensure the redaction is slightly larger than the PII
+      const bufferedBox = applySafetyBuffer(d.box_2d, 0.015);
+      
+      return {
+        ...d,
+        id: `det-${index}-${Date.now()}`,
+        box_2d: bufferedBox,
+        selected: true
+      };
+    });
+  } catch (error) {
+    console.error("AI Analysis failed:", error);
+    throw error;
   }
-  
-  console.error("AI Analysis failed after retries:", lastError?.message ?? "Unknown error");
-  throw lastError;
 };
